@@ -1,14 +1,19 @@
 #!/bin/bash
 
 REPO_PATH=~
-DIR_NAME="jwc2ical"
-if [ -n "$1"]; then
-	if [ "$1" -eq "test"]; then
-		$DIR_NAME = "dev95";
+DIR_NAME="dev95"
+if [ -n "$1" ]; then
+	if [ "$1" == "jwc" ]; then
+		DIR_NAME="jwc2ical"
 	else
-		echo "Not recognized para $1\n";
-		exit 1;
+		echo "Not recognized para $1"
+		exit 1
 	fi
+fi
+
+if [ "$UID" -ne 1001 ]; then
+	echo "Switch to dev-user to run this script!"
+	exit 1
 fi
 
 rm /usr/lib/cgi-bin/$DIR_NAME/* -rf

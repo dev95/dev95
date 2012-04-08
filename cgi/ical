@@ -14,16 +14,10 @@ use Data::ICal::Entry::Alarm::Display;
 use Date::ICal;
 use utf8;
 use encoding 'utf8';
-use CGI qw /:standard/;
 
-my $query = CGI->new;
-my $class_num = $query->url_param( 'class');
-my $file_name = "/dev/shm/".($query->url_param( 'serial')).".ical.events";
-my @needed_class = sort { $a <=> $b } $query->param( 'courses');
+my $class_num = shift @ARGV;
+my @needed_class = sort { $a <=> $b } @ARGV;
 
-#print header( -type => 'text/html', charset => 'utf-8');
-#print "@needed_class\n";
-#exit;
 my @day_name = ( "MO", "TU", "WE", "TH", "FR", "SA", "SU");
 my @class_parts = qw/ name teacher location week during date s_time t_time/;
 my @exam_parts = qw/ week date s_time t_time location name/;
@@ -36,28 +30,21 @@ my $year = $first_monday[0];
 my $month = $first_monday[1];
 close DT;
 
-open EVENT, "<:encoding(utf8)", $file_name or print "Content-Type:text/html\n\nClasses not found!\n" and exit;
-my $line = <EVENT>;
-my @courses = split /\s+/, $line;
+my $line = <STDIN>;
+my @courses = split /`/, $line;
 my @useless;
 my $cnt = 0;
 foreach ( 0..( @courses-1))
 {
 	$cnt < @needed_class && $_ == $needed_class[$cnt] ? ++$cnt : push @useless, $courses[$_];
 }
-#print "Useless classes:\n";
-#foreach ( @useless)
-#{
-	#print $_;
-	#print p;
-#}
 
 my @classes;
 my @exams;
-while ( my $line = <EVENT>)
+while ( my $line = <STDIN>)
 {
 	chomp $line;
-	my @info = split /\s+/, $line;
+	my @info = split /`/, $line;
 	if ( $info[0] eq 'Class:')
 	{
 		my %class_info;
@@ -78,8 +65,6 @@ while ( my $line = <EVENT>)
 			$class_info{name} =~ m/$_/ and $flag = 1 and last;
 		}
 		push @classes, { %class_info} if not $flag;
-		#print $class_info{name}, " get ", $flag ? "Passed" : "Deleted", "\n";
-		#print p;
 	}
 	else
 	{
@@ -101,12 +86,8 @@ while ( my $line = <EVENT>)
 			$exam_info{name} =~ m/$_.*考试/ and $flag = 1 and last;
 		}
 		push @exams, { %exam_info} if not $flag;
-		#print $exam_info{name}, " get ", ( not $flag) ? "Passed" : "Deleted", "\n";
-		#print p;
 	}
 }
-close EVENT;
-unlink $file_name;
 
 # All informations are available now.
 my $tz = "Asia/Shanghai"; # Or Harbin.
@@ -261,9 +242,6 @@ foreach ( @exams)
 	$vcal->add_entry( $vexam);
 }
 
-#print "Content-Type:application/octet-stream; name=\"$class_num.ics\"\n";
-#print "Content-Disposition: attachment; filename=\"$class_num.ics\"\n\n";
-print header( -type => 'application/octet-stream', -attachment => "$class_num.ics", -charset => 'utf-8');
 print $vcal->as_string( crlf => "\n"), "\n";
 
 exit;

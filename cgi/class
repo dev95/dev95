@@ -11,16 +11,14 @@ use HTML::TreeBuilder;
 use Encode;
 use utf8;
 use encoding 'utf8';
-use CGI qw /:standard/;
 
-my $query = CGI->new;
-my $class_num = $query->param( "class");
+my $class_num = $ARGV[0];
 
 my $browser = LWP::UserAgent->new;
 #my $class_num = $ARGV[0];
 my $table_url = 'http://xscj.hit.edu.cn/Hitjwgl/XS/kfxqkb.asp';
 my @num_name = qw{ 一 二 三 四 五 六 七 八 九 十 十一 十二};
-my @class_parts = qw/ name teacher location week during date s_time t_time/;
+my @class_parts = qw/ name teacher location week repeats date s_time t_time/;
 my @exam_parts = qw/ week date s_time t_time location name/;
 
 my $table = $browser->post( $table_url, [ "BH" => $class_num]);
@@ -39,22 +37,19 @@ while ( my $line = <SC>)
 close SC;
 
 my $table_tree = HTML::TreeBuilder->new_from_content( decode( 'gbk', $table->content));
-#open(my $tfh, "<:encoding(gbk)", "kfx.htm") || die "no open tfh";
-#my $table_tree = HTML::TreeBuilder->new_from_file( $tfh);
 
 # Or I may need to find out tbody.
 my $real_table = $table_tree->look_down( '_tag', 'table', sub { $_[0]->content_list >= 7 } );
-print "Content-Type:text/html\n\nWrong class number!\n" and exit unless $real_table;
-#print $real_table->as_text, "\n";
+die "Wrong class number $class_num!" unless $real_table;
 
 my @classes;
 my %courses;
 my %courses_table;
 #deprecated # @classes[lesson][day][count] represents a class. 
 
-# A class is made up of six lines: Course Name, Teacher, Classroom, During, Date, Time.
+# A class is made up of six lines: Course Name, Teacher, Classroom, Repeats, Date, Time.
 # @classes[count] represents a class, like $classes[0]{teacher}.
-# During means from week a to week b.
+# Repeats means how many times a class repeats.
 # Date means which day of the week.
 # Time means begin and end times, in the formate ( aa:bb, cc:dd).
 # We do have 6 big lessons everyday.
@@ -73,18 +68,15 @@ foreach my $i ( 1..6)
 			# Some data contains empty lines, so if there is a <tr>, there is a valid class.
 			if ( $data->look_down( '_tag', 'tr'))
 			{
-#				print "$a, day $j: ", $data->as_text, "\n";
 				my @class_info = ();
 
 				# They put them into a table, too. Painfully.
 				foreach ( ( ( $data->look_down( '_tag', 'table'))[0])->content_list)
 				{
-#					print "\tnow : ", $_->as_text, "\n";
 
 					# Classes are sperated by <hr>s in each <tr>.
 					if ( $_->look_down( '_tag', 'hr'))
 					{
-#						print "Get @class_info at $a-$b\n";
 						&check_and_push( \@class_info, \@classes, $j - 1, $i - 1);
 					}
 					else
@@ -131,27 +123,32 @@ foreach my $i ( 1..6)
 my $exams_table = $real_table->look_down( '_tag', 'tr', sub { $_[0]->as_text =~ m/考\s+试\s+安\s+排/} );
 $exams_table = $exams_table->look_down( '_tag', 'table');
 my @exams;
-my $file_name = rand;
-open EVENT, ">:encoding(utf8)", "/dev/shm/".$file_name.".ical.events" or print "Content-Type:text/html\n\nClasses not found!\n" and exit;
 foreach my $exam_node ( $exams_table->look_down( '_tag', 'td'))
 {
 	if ( not $exam_node->as_text eq '')
 	{
 		my @exam_info = split /\s+/, $exam_node->as_text;
+		#warn "Not expected data @exam_info" if @exam_info != 5;
+
 		# Format is: week, date, time, location, subject. 
-		#print "Get @exam_info\n";
-		warn "Not expected data @exam_info" if @exam_info != 5;
+		# There might be spaces in name of classes.
+		while ( @exam_info != 5)
+		{
+			$exam_info[-2] .= " " . $exam_info[-1];
+			pop @exam_info;
+		}
 
 		$exam_info[0] =~ s/第(\d*)周/$1/ or warn "No accure week";
 		$exam_info[1] =~ s/周日/周七/;
-		$exam_info[1] =~ s/周(\d*)/$1/ or warn( "No accure word on date"),;
+		$exam_info[1] =~ s/周(\d*)/$1/ or warn "No accure word on date";
 		$exam_info[1] = &find( [ @num_name], $exam_info[1]) or warn "No accure date";
 
 		my $time = $exam_info[2];
 
 		# Say that the start time and end time are all two digits. Like 08:00-10:00.
 		# As far as I know, HIT never starts an exam at 8:00 in the morning.
-		$time =~ m/(\d\d):(\d\d)-(\d\d):(\d\d)/ or warn "Time format is not recognized: $time";
+		# 2012 Spring, class 1104101 happened!! NO!!!!
+		$time =~ m/(\d?\d):(\d\d)-(\d\d):(\d\d)/ or warn "Time format is not recognized: $time";
 		# This reg exp is NOT the same as before. See ':' and '：' ? 
 		
 		# Replace the string with a reference.
@@ -170,47 +167,35 @@ foreach my $exam_node ( $exams_table->look_down( '_tag', 'td'))
 	}
 }
 
-my @courses_list = sort keys %courses;
-print EVENT "@courses_list\n";
+foreach( sort keys %courses)
+{
+	print STDOUT $_, '`';
+}
+print STDOUT "\n";
+
+binmode( STDOUT, ":utf8");
 
 foreach ( @classes)
 {
 	my %class = %$_;
-	print EVENT "Class:";
+	print STDOUT "Class:";
 	foreach ( @class_parts)
 	{
-		print EVENT " ", $_ =~ m/time/ ? $class{$_}[0].":".$class{$_}[1] : $class{$_};
+		print STDOUT "`", $_ =~ m/time/ ? $class{$_}[0].":".$class{$_}[1] : $class{$_};
 	}
-	print EVENT "\n";
+	print STDOUT "\n";
 }
 
 foreach ( @exams)
 {
 	my %exam = %$_;
-	print EVENT "Exam:";
+	print STDOUT "Exam:";
 	foreach ( @exam_parts)
 	{
-		print EVENT " ", $_ =~ m/time/ ? $exam{$_}[0].":".$exam{$_}[1] : $exam{$_};
+		print STDOUT "`", $_ =~ m/time/ ? $exam{$_}[0].":".$exam{$_}[1] : $exam{$_};
 	}
-	print EVENT "\n";
+	print STDOUT "\n";
 }
-
-close EVENT;
-
-print header( -type => "text/html", -charset=>'utf-8'),
-	start_html( "Check boxes"),
-	h3( "Uncheck the classes that are not needed."),
-	start_form( -method => "post", -action=>"/cgi-bin/jwc2ical/ical?class=$class_num&serial=$file_name");
-my $cnt = 0;
-foreach ( @courses_list)
-{
-	print checkbox( -name => 'courses', -checked => 1, -label => $_, -value => $cnt), "\n";
-	++$cnt;
-	print p;
-}
-print submit( 'submit');
-print end_form;
-print end_html;
 
 exit;
 
@@ -225,13 +210,13 @@ sub check_and_push
 		$_[0][3] = [ $1, $2];
 		push @{$_[0]}, $_[2], [ $class_times[$_[3]*2][0], $class_times[$_[3]*2+1][1]];
 
-		#A class is made up of six lines: Course Name, Teacher, Classroom, During, Date, Time.
+		#A class is made up of six lines: Course Name, Teacher, Classroom, Repeats, Date, Time.
 		my $class = {
 			name 		=> $_[0][0],
 			teacher 	=> $_[0][1],
 			location 	=> $_[0][2],
 			week 		=> $_[0][3][0],
-			during 		=> $_[0][3][1] - $_[0][3][0] + 1,
+			repeats		=> $_[0][3][1] - $_[0][3][0] + 1,
 			date 		=> $_[0][4],
 			s_time 		=> $_[0][5][0],
 			t_time 	  	=> $_[0][5][1],
