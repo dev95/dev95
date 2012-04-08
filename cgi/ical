@@ -19,7 +19,7 @@ my $class_num = shift @ARGV;
 my @needed_class = sort { $a <=> $b } @ARGV;
 
 my @day_name = ( "MO", "TU", "WE", "TH", "FR", "SA", "SU");
-my @class_parts = qw/ name teacher location week during date s_time t_time/;
+my @class_parts = qw/ name teacher location week repeats date s_time t_time/;
 my @exam_parts = qw/ week date s_time t_time location name/;
 
 open DT, "<", "dtstart" or die "No dtstart!";
@@ -141,7 +141,7 @@ foreach ( @classes)
 {
 	my %class_info = %$_;
 #	print "Adding $class_info{name} from @{$class_info{s_time}} to @{$class_info{t_time}} clock ".
-#	"at $class_info{week} week during $class_info{during} weeks on $day_name[$class_info{date}]\n";
+#	"at $class_info{week} week repeats $class_info{repeats} weeks on $day_name[$class_info{date}]\n";
 
 	# Until now ( 2012.1), JWC does not support a class ends at the middle of a week.
 	# So I do not condsider it.
@@ -164,7 +164,7 @@ foreach ( @classes)
 		sec    		=> 0,
 	);
 
-	my $class_count = $class_info{during};
+	my $class_count = $class_info{repeats};
 	my $str_start = $first_class_start_time->ical( offset => $tzset);
 	my $str_end = $first_class_end_time->ical( offset => $tzset);
 
