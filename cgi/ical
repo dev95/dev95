@@ -45,7 +45,7 @@ while ( my $line = <STDIN>)
 {
 	chomp $line;
 	my @info = split /`/, $line;
-	if ( $info[0] eq 'Class:')
+	if ( $info[0] eq 'class')
 	{
 		my %class_info;
 		foreach ( 1..@class_parts)

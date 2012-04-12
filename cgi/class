@@ -12,10 +12,8 @@ use Encode;
 use utf8;
 use encoding 'utf8';
 
-my $class_num = $ARGV[0];
-
 my $browser = LWP::UserAgent->new;
-#my $class_num = $ARGV[0];
+my $class_num = $ARGV[0];
 my $table_url = 'http://xscj.hit.edu.cn/Hitjwgl/XS/kfxqkb.asp';
 my @num_name = qw{ 一 二 三 四 五 六 七 八 九 十 十一 十二};
 my @class_parts = qw/ name teacher location week repeats date s_time t_time/;
@@ -73,7 +71,6 @@ foreach my $i ( 1..6)
 				# They put them into a table, too. Painfully.
 				foreach ( ( ( $data->look_down( '_tag', 'table'))[0])->content_list)
 				{
-
 					# Classes are sperated by <hr>s in each <tr>.
 					if ( $_->look_down( '_tag', 'hr'))
 					{
@@ -178,7 +175,7 @@ binmode( STDOUT, ":utf8");
 foreach ( @classes)
 {
 	my %class = %$_;
-	print STDOUT "Class:";
+	print STDOUT "class";
 	foreach ( @class_parts)
 	{
 		print STDOUT "`", $_ =~ m/time/ ? $class{$_}[0].":".$class{$_}[1] : $class{$_};
@@ -189,7 +186,7 @@ foreach ( @classes)
 foreach ( @exams)
 {
 	my %exam = %$_;
-	print STDOUT "Exam:";
+	print STDOUT "exam";
 	foreach ( @exam_parts)
 	{
 		print STDOUT "`", $_ =~ m/time/ ? $exam{$_}[0].":".$exam{$_}[1] : $exam{$_};
