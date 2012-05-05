@@ -12,34 +12,31 @@ use Encode;
 use utf8;
 use encoding 'utf8';
 
-my $browser = LWP::UserAgent->new;
 my $class_num = $ARGV[0];
 my $table_url = 'http://xscj.hit.edu.cn/Hitjwgl/XS/kfxqkb.asp';
 my @num_name = qw{ 一 二 三 四 五 六 七 八 九 十 十一 十二};
 my @class_parts = qw/ name teacher location week repeats interval date s_time t_time/;
 my @exam_parts = qw/ week date s_time t_time location name/;
 
-my @class_times;
-&find_schedule( \@class_times);
-
-my $table = $browser->post( $table_url, [ "BH" => $class_num]);
-&check( $table, $table_url);
-
-my $table_tree = HTML::TreeBuilder->new_from_content( decode( 'gbk', $table->content));
+my $table_tree = &find_table_tree( $table_url, [ "BH" => $class_num]);
 
 # Or I may need to find out tbody.
 my $real_table = $table_tree->look_down( '_tag', 'table', sub { $_[0]->content_list >= 7 } );
 die "Wrong class number $class_num!" unless $real_table;
 
+my @class_times;
+&find_schedule( \@class_times);
+
 my @classes;
 my %courses;
 my %courses_table;
-&find_classes( $real_table, \@classes);
+&find_classes( $real_table, \@classes, \%courses, \%courses_table);
 
 my @exams;
 &find_exams( $real_table, \@exams);
 
 &store( \%courses, \@classes, \@exams);
+
 exit;
 
 sub store
@@ -81,8 +78,13 @@ sub check_and_push
 	# Examinations are ignored and they will be processed later.
 	if ( not $_[0][0] =~ m/周考试/)
 	{
-		my $info = $_[0];
-		my $classes = $_[1];
+		my $info = shift;
+		my $date = shift;
+		my $time = shift;
+		my $classes = shift;
+		my $courses_table = shift;
+		my $courses = shift;
+
 		warn "Not expected data @$info" if @$info != 4;
 		my $weeks = $$info[3];
 		warn "Not recognized weeks at $weeks" if not $weeks =~ m/(\d*)-(\d*)周(\s+[（(](双|单)[)）])*/;
@@ -108,7 +110,7 @@ sub check_and_push
 		}
 
 		# Every big lesson last two period of time.
-		push @$info, $_[2], [ $class_times[$_[3]*2][0], $class_times[$_[3]*2+1][1]];
+		push @$info, $date, [ $class_times[$time*2][0], $class_times[$time*2+1][1]];
 
 		# Split a class into nine parts, more clearly.
 		my $class = {
@@ -125,11 +127,11 @@ sub check_and_push
 
 		push @$classes, $class;
 
-		if ( not exists $courses_table{$$info[0]})
+		if ( not exists $$courses_table{$$info[0]})
 		{
-			$courses_table{$$info[0]} = keys %courses_table;
+			$$courses_table{$$info[0]} = keys %$courses_table;
 		}
-		++$courses{$$info[0]};
+		++$$courses{$$info[0]};
 		@$info = ();
 	}
 }
@@ -188,8 +190,8 @@ sub find_exams
 
 sub find_classes
 {
-	my $real_table = $_[0];
-	my $classes = $_[1];
+	my $real_table = shift;
+	my @counters = @_;
 	# A class is made up of five lines: Course Name, Teacher, Classroom, Date, Time.
 	# @classes[count] represents a class, like $classes[0]{teacher}.
 	# Date means which week, which day, and what the interval is of the class.
@@ -219,7 +221,7 @@ sub find_classes
 						# Classes are sperated by <hr>s in each <tr>.
 						if ( $_->look_down( '_tag', 'hr'))
 						{
-							&check_and_push( \@class_info, $classes, $j - 1, $i - 1);
+							&check_and_push( \@class_info, $j - 1, $i - 1, @counters);
 						}
 						else
 						{
@@ -255,7 +257,7 @@ sub find_classes
 					}
 
 					# The last one is not followed by a <hr>
-					&check_and_push( \@class_info, $classes, $j - 1, $i - 1);
+					&check_and_push( \@class_info, $j - 1, $i - 1, @counters);
 				}
 			}
 		}
@@ -286,15 +288,17 @@ sub find
 	return undef;
 }
 
-sub check
+sub find_table_tree
 {
-	my $response = $_[0];
-	my $url = $_[1];
-	die "$url error: ", $response->status_line unless $response->is_success;
-	die "Weird content type at $url -- ", $response->content_type
-		unless $response->content_type eq 'text/html';
-#	print $response->content;
+	my $table_url = shift;
+	my $args = shift;
 
-	return $response;
+	my $browser = LWP::UserAgent->new;
+	my $table = $browser->post( $table_url, $args);
+
+	die "$table_url error: ", $table->status_line unless $table->is_success;
+	die "Weird content type at $table_url -- ", $table->content_type
+		unless $table->content_type eq 'text/html';
+
+	return HTML::TreeBuilder->new_from_content( decode( 'gbk', $table->content));
 }
-
