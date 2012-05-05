@@ -81,8 +81,10 @@ sub check_and_push
 	# Examinations are ignored and they will be processed later.
 	if ( not $_[0][0] =~ m/周考试/)
 	{
-		warn "Not expected data @{$_[0]}" if @{$_[0]} != 4;
-		my $weeks = $_[0][3];
+		my $info = $_[0];
+		my $classes = $_[1];
+		warn "Not expected data @$info" if @$info != 4;
+		my $weeks = $$info[3];
 		warn "Not recognized weeks at $weeks" if not $weeks =~ m/(\d*)-(\d*)周(\s+[（(](双|单)[)）])*/;
 
 		# Deal with classes which is taken once every 2 weeks.
@@ -91,44 +93,44 @@ sub check_and_push
 		{
 			my $trail = $4 eq '双' ? 0 : $4 eq '单' ? 1 : -1;
 			# We should not get here.
-			warn "Any thing wrong with week at " . $_[0][0] . "?" if ( $trail == -1);
+			warn "Any thing wrong with week at " . $$info[0] . "?" if ( $trail == -1);
 
 			$s += 1 if $s % 2 != $trail;
 			$t -= 1 if $t % 2 != $trail;
 
-			warn "Wrong week of " . $_[0][0] if $s > $t;
+			warn "Wrong week of " . $$info[0] if $s > $t;
 
-			$_[0][3] = [ $s, int( ( $t - $s) / 2) + 1, 2];
+			$$info[3] = [ $s, int( ( $t - $s) / 2) + 1, 2];
 		}
 		else
 		{
-			$_[0][3] = [ $s, $t - $s + 1, 1];
+			$$info[3] = [ $s, $t - $s + 1, 1];
 		}
 
 		# Every big lesson last two period of time.
-		push @{$_[0]}, $_[2], [ $class_times[$_[3]*2][0], $class_times[$_[3]*2+1][1]];
+		push @$info, $_[2], [ $class_times[$_[3]*2][0], $class_times[$_[3]*2+1][1]];
 
 		# Split a class into nine parts, more clearly.
 		my $class = {
-			name 		=> $_[0][0],
-			teacher 	=> $_[0][1],
-			location 	=> $_[0][2],
-			week 		=> $_[0][3][0],
-			repeats		=> $_[0][3][1],
-			interval 	=> $_[0][3][2],
-			date 		=> $_[0][4],
-			s_time 		=> $_[0][5][0],
-			t_time 	  	=> $_[0][5][1],
+			name 		=> $$info[0],
+			teacher 	=> $$info[1],
+			location 	=> $$info[2],
+			week 		=> $$info[3][0],
+			repeats		=> $$info[3][1],
+			interval 	=> $$info[3][2],
+			date 		=> $$info[4],
+			s_time 		=> $$info[5][0],
+			t_time 	  	=> $$info[5][1],
 		};
 
-		push @{$_[1]}, $class;
+		push @$classes, $class;
 
-		if ( not exists $courses_table{$_[0][0]})
+		if ( not exists $courses_table{$$info[0]})
 		{
-			$courses_table{$_[0][0]} = keys %courses_table;
+			$courses_table{$$info[0]} = keys %courses_table;
 		}
-		++$courses{$_[0][0]};
-		@{$_[0]} = ();
+		++$courses{$$info[0]};
+		@$info = ();
 	}
 }
 
