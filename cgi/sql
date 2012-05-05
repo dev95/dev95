@@ -1,0 +1,180 @@
+#!/usr/bin/perl -w
+
+use strict;
+use utf8;
+use DBI;
+use Config::Simple;
+
+my %cfg;
+Config::Simple->import_from( "/etc/dev95/jwc2ical.conf", \%cfg);
+
+my $user = $cfg{"DB_USER"} or die "No DATABASE User found!";
+my $password = $cfg{"DB_PASSWD"} or die "No DATABASE Password found!";
+
+my $dbh = DBI->connect("DBI:mysql:jwc2ical", $user, $password)
+	or die "Couldn't connect to data base: ", DBI->errstr;
+$dbh->do("set names 'utf8';");
+$dbh->{'mysql_enable_utf8'} = 1;
+
+my @class_parts = qw/ name teacher location week repeats date s_time t_time/;
+my @exam_parts = qw/ week date s_time t_time location name/;
+my @sql_parts = qw/ version class name teacher location week date s_time t_time repeats interval type/;
+
+my @lines = <STDIN>;
+my $version = shift;
+my $class = shift;
+
+my ( $classes, $exams) = &text_to_sql( $version, $class, \@lines);
+
+foreach my $event ( @$classes, @$exams)
+{
+	foreach my $key ( keys %{$event})
+	{
+		print " $key:", ${$event}{$key};
+	}
+	print "\n";
+}
+
+sub sql_to_text
+{
+	my $version = shift;
+	my $class = shift;
+	
+	my $courses;
+	my @courses;
+	my $csth = $dbh->prepare( "SELECT * FROM course WHERE version = $version and class = $class")
+		or die $dbh->errstr;
+	while ( my @row = $csth->fetchrow_array)
+	{
+		push @course, @row[2];
+		$courses .= '`' . @row[2];
+	}
+
+	my $sth = $dbh->prepare( "SELECT * FROM event WHERE version = $version and class = $class")
+		or die $dbh->errstr;
+
+	my @classes;
+	my @exams;
+	while ( my @row = $sth->fetchrow_array)
+	{
+		my %event;
+		foreach my $part ( @sql_parts)
+		{
+			$event{$part} = shift @row;
+		}
+
+		delete $event{version};
+		delete $event{class};
+		$event{s_time} = &time_to_array( $event{s_time});
+		$event{t_time} = &time_to_array( $event{t_time});
+
+		if ( delete $event{type} eq "class")
+		{
+			push @classes, { %event};
+		}
+		else
+		{
+			push @exams, { %event};
+		}
+	}
+
+	return [ @classes], [ @exams], $courses;
+}
+
+sub text_to_sql
+{
+	my $version = shift;
+	my $class = shift;
+
+	my $lines = shift;
+
+	my $courses = shift @$lines;
+	my @courses = split /`/, $courses;
+
+	my $csth = $dbh->prepare( "INSERT INTO course ( 'version', 'class', 'name', 'count', 'type') VALUES ( ?, ?, ?, ?, ?);")
+		or die $dbh->errstr;
+	foreach my $course ( @courses)
+	{
+		$csth->bind_value( 1, $version);
+		$csth->bind_value( 2, $class);
+		$csth->bind_value( 3, $course);
+		$csth->bind_value( 4, 1);
+		$csth->bind_value( 5, 'class');
+		$csth->execute() or die $dbh->errstr;
+	}
+
+	my @classes;
+	my @exams;
+	foreach my $line ( @$lines)
+	{
+		chomp $line;
+		my @info = split /`/, $line;
+		if ( shift @info eq 'class')
+		{
+			&parse_and_push( \@info, \@class_parts, \@classes);
+			$classes[-1]{type} = 'class';
+		}
+		else
+		{
+			&parse_and_push( \@info, \@exam_parts, \@exams);
+			$exams[-1]{type} = 'exam';
+		}
+	}
+
+	my $cnt = @sql_parts;
+	my $col = "@sql_parts";
+	$col =~ s/ /`, `/g;
+	my $sth = $dbh->prepare( "INSERT INTO event ( `$col`) VALUES (". " ?," x ( $cnt - 1) ." ?);")
+		or die $dbh->errstr;
+
+	foreach my $event ( @classes, @exams)
+	{
+		my %event = %$event;
+		$event{version} = $version;
+		$event{class} = $class;
+		$event{interval} = 1;
+		$event{s_time} = &array_to_time( $event{s_time});
+		$event{t_time} = &array_to_time( $event{t_time});
+
+		my $cur = 1;
+		foreach my $part ( @sql_parts)
+		{
+			$sth->bind_param( $cur, $event{$part});
+			$cur++;
+		}
+
+		$sth->execute() or die $dbh->errstr;
+	}
+}
+
+sub array_to_time
+{
+	my $array = shift;
+	return $$array[0] * 100 + $$array[1];
+}
+
+sub time_to_array
+{
+	my $time = shift;
+	return [ $time / 100, $time % 100];
+}
+
+sub parse_and_push
+{
+	my ( $info, $parts, $set) = @_;
+	my %event_info;
+	foreach ( 0..@$parts-1)
+	{
+		if ( $$parts[$_] =~ m/time/)
+		{
+			$event_info{$$parts[$_]} = [ split /:/, $$info[$_]];
+		}
+		else
+		{
+			$event_info{$$parts[$_]} = $$info[$_];
+		}
+	}
+
+	push @{$set}, { %event_info};
+}
+
