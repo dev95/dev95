@@ -11,7 +11,6 @@ use HTML::TreeBuilder;
 use Encode;
 use utf8;
 
-my $browser = LWP::UserAgent->new;
 my $class_num = $ARGV[0];
 my $date_url = 'http://jwc.hit.edu.cn/jwc/displaytwo.asp?ID=202';
 my @num_name = qw{ 一 二 三 四 五 六 七 八 九 十 十一 十二};
@@ -19,11 +18,8 @@ my @num_syb = ( "\x{2474}", "\x{2475}", "\x{2476}", "\x{2477}", "\x{2478}", "\x{
 	"\x{247A}", "\x{247B}", "\x{247C}", "\x{247D}", "\x{247E}", "\x{247F}", "\x{2480}",
 	"\x{2481}", "\x{2482}", "\x{2483}", "\x{2484}", "\x{2485}", "\x{2486}", "\x{2487}");
 
-my $date_table = $browser->get( $date_url);
-&check( $date_table, $date_url);
 # Now for date table.
-
-my $date_tree = HTML::TreeBuilder->new_from_content( decode( 'gbk', $date_table->content));
+my $date_tree = &find_table_tree( $date_url);
 
 # Only the head is needed.
 my $real_date = $date_tree->look_down( '_tag', 'thead');
@@ -125,15 +121,17 @@ sub find
 	return undef;
 }
 
-sub check
+sub find_table_tree
 {
-	my $response = $_[0];
-	my $url = $_[1];
-	die "$url error: ", $response->status_line unless $response->is_success;
-	die "Weird content type at $url -- ", $response->content_type
-		unless $response->content_type eq 'text/html';
-#	print $response->content;
+	my $table_url = shift;
+	my $args = shift;
 
-	return $response;
+	my $browser = LWP::UserAgent->new;
+	my $table = $args ? $browser->post( $table_url, $args) : $browser->get( $table_url);
+
+	die "$table_url error: ", $table->status_line unless $table->is_success;
+	die "Weird content type at $table_url -- ", $table->content_type
+		unless $table->content_type eq 'text/html';
+
+	return HTML::TreeBuilder->new_from_content( decode( 'gbk', $table->content));
 }
-

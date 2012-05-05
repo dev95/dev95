@@ -294,7 +294,7 @@ sub find_table_tree
 	my $args = shift;
 
 	my $browser = LWP::UserAgent->new;
-	my $table = $browser->post( $table_url, $args);
+	my $table = $args ? $browser->post( $table_url, $args) : $browser->get( $table_url);
 
 	die "$table_url error: ", $table->status_line unless $table->is_success;
 	die "Weird content type at $table_url -- ", $table->content_type
