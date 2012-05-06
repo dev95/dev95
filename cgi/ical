@@ -15,7 +15,6 @@ use Date::ICal;
 use utf8;
 use encoding 'utf8';
 
-my $class_num = shift @ARGV;
 my @needed_class = sort { $a <=> $b } @ARGV;
 
 my @day_name = ( "MO", "TU", "WE", "TH", "FR", "SA", "SU");
@@ -31,7 +30,10 @@ my $month = $first_monday[1];
 close DT;
 
 my $line = <STDIN>;
+chomp( $line);
 my @courses = split /`/, $line;
+my $class_num = shift @courses;
+
 my @useless;
 my $cnt = 0;
 foreach ( 0..( @courses-1))
