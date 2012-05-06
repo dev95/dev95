@@ -33,6 +33,62 @@ elsif ( $type eq 's')
 	my $class = shift;
 	&sql_to_text( $version, $class);
 }
+elsif ( $type eq 'f')
+{
+	&fetch_version_date( $version);
+}
+elsif ( $type eq 'u')
+{
+	&update_version_date( $version);
+}
+elsif ( $type eq 'p')
+{
+	my $class = shift;
+	my $value = shift;
+	&put_class_value( $version, $class, $value);
+}
+elsif ( $type eq 'g')
+{
+	my $class = shift;
+	&get_class_value( $version, $class);
+}
+
+sub get_class_value
+{
+	my $version = shift;
+	my $class = shift;
+
+	my $sth = $dbh->prepare( "SELECT value FROM class WHERE 'version' = $version and 'class' = $class");
+	$sth->execute();
+	$value = ( $sth->fetchrow_array())[0];
+	print $value, "\n";
+}
+
+sub put_class_value
+{
+	my $version = shift;
+	my $class = shift;
+	my $value = shift;
+
+	my $sth = $dbh->prepare( "INSERT INTO class ( version, class, value) VALUE ( $version, $class, $value)");
+	$sth->execute();
+}
+
+sub fetch_version_date
+{
+	my $version = shift;
+	my $sth = $dbh->prepare( "SELECT value FROM config WHERE key = 'version'");
+	$sth->execute();
+	$version = ( $sth->fetchrow_array())[0];
+	print $version, "\n";
+}
+
+sub update_version_date
+{
+	my $version = shift;
+	my $sth = $dbh->prepare( "UPDATE config SET value = $version WHERE key = 'version'");
+	$sth->execute();
+}
 
 sub sql_to_text
 {
@@ -208,4 +264,3 @@ sub parse_and_push
 
 	push @{$set}, { %event_info};
 }
-
