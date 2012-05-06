@@ -39,7 +39,7 @@ sub sql_to_text
 	my $version = shift;
 	my $class = shift;
 	
-	my $courses = $class;
+	my $courses;
 	my @courses;
 	my $csth = $dbh->prepare( "SELECT * FROM course WHERE version = $version and class = $class")
 		or die $dbh->errstr;
@@ -87,7 +87,7 @@ sub sql_to_text
 		}
 	}
 
-	print $courses, "\n";
+	print $class, $courses, "\n";
 	foreach ( @classes)
 	{
 		my %class = %$_;
