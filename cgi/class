@@ -35,18 +35,21 @@ my %courses_table;
 my @exams;
 &find_exams( $real_table, \@exams);
 
-&store( \%courses, \@classes, \@exams);
+&store( $class_num, \%courses, \@classes, \@exams);
 
 exit;
 
 sub store
 {
+	my $class_num = shift;
 	my $courses = shift;
 	my $classes = shift;
 	my $exams = shift;
+
+	print $class_num;
 	foreach( sort keys %$courses)
 	{
-		print STDOUT $_, '`';
+		print STDOUT '`', $_;
 	}
 	print STDOUT "\n";
 

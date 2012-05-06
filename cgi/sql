@@ -4,6 +4,7 @@ use strict;
 use utf8;
 use DBI;
 use Config::Simple;
+use encoding 'utf8';
 
 my %cfg;
 Config::Simple->import_from( "/etc/dev95/jwc2ical.conf", \%cfg);
@@ -16,23 +17,21 @@ my $dbh = DBI->connect("DBI:mysql:jwc2ical", $user, $password)
 $dbh->do("set names 'utf8';");
 $dbh->{'mysql_enable_utf8'} = 1;
 
-my @class_parts = qw/ name teacher location week repeats date s_time t_time/;
+my @class_parts = qw/ name teacher location week repeats interval date s_time t_time/;
 my @exam_parts = qw/ week date s_time t_time location name/;
 my @sql_parts = qw/ version class name teacher location week date s_time t_time repeats interval type/;
 
-my @lines = <STDIN>;
+my $type = shift;
 my $version = shift;
-my $class = shift;
-
-my ( $classes, $exams) = &text_to_sql( $version, $class, \@lines);
-
-foreach my $event ( @$classes, @$exams)
+if ( $type eq 't')
 {
-	foreach my $key ( keys %{$event})
-	{
-		print " $key:", ${$event}{$key};
-	}
-	print "\n";
+	my @lines = <STDIN>;
+	&text_to_sql( $version, \@lines);
+}
+elsif ( $type eq 's')
+{
+	my $class = shift;
+	&sql_to_text( $version, $class);
 }
 
 sub sql_to_text
@@ -40,66 +39,99 @@ sub sql_to_text
 	my $version = shift;
 	my $class = shift;
 	
-	my $courses;
+	my $courses = $class;
 	my @courses;
 	my $csth = $dbh->prepare( "SELECT * FROM course WHERE version = $version and class = $class")
 		or die $dbh->errstr;
+	$csth->execute();
 	while ( my @row = $csth->fetchrow_array)
 	{
-		push @course, @row[2];
-		$courses .= '`' . @row[2];
+		push @courses, $row[3];
+		$courses .= '`' . $row[3];
 	}
 
 	my $sth = $dbh->prepare( "SELECT * FROM event WHERE version = $version and class = $class")
 		or die $dbh->errstr;
+	$sth->execute();
 
 	my @classes;
 	my @exams;
 	while ( my @row = $sth->fetchrow_array)
 	{
+		my $id = shift @row;
+
 		my %event;
 		foreach my $part ( @sql_parts)
 		{
 			$event{$part} = shift @row;
 		}
 
+		delete $event{id};
 		delete $event{version};
 		delete $event{class};
 		$event{s_time} = &time_to_array( $event{s_time});
 		$event{t_time} = &time_to_array( $event{t_time});
 
-		if ( delete $event{type} eq "class")
+		$type = delete $event{type};
+		if ( $type eq "class")
 		{
 			push @classes, { %event};
 		}
-		else
+		elsif ( $type eq "exam")
 		{
 			push @exams, { %event};
 		}
+		else
+		{
+			warn "wrong type at $id, $class, $version";
+		}
 	}
 
-	return [ @classes], [ @exams], $courses;
+	print $courses, "\n";
+	foreach ( @classes)
+	{
+		my %class = %$_;
+		print "Class";
+		foreach ( @class_parts)
+		{
+			print "`", $_ =~ m/time/ ? $class{$_}[0].":".$class{$_}[1] : $class{$_};
+		}
+		print "\n";
+	}
+
+	foreach ( @exams)
+	{
+		my %exam = %$_;
+		print "Exam";
+		foreach ( @exam_parts)
+		{
+			print "`", $_ =~ m/time/ ? $exam{$_}[0].":".$exam{$_}[1] : $exam{$_};
+		}
+		print "\n";
+	}
 }
 
 sub text_to_sql
 {
 	my $version = shift;
-	my $class = shift;
 
 	my $lines = shift;
 
 	my $courses = shift @$lines;
+	chomp( $courses);
 	my @courses = split /`/, $courses;
+	my $class = shift @courses;
 
-	my $csth = $dbh->prepare( "INSERT INTO course ( 'version', 'class', 'name', 'count', 'type') VALUES ( ?, ?, ?, ?, ?);")
+	my $csth = $dbh->prepare( "INSERT INTO course ( `version`, `class`, `name`, `count`, `type`) VALUES ( ?, ?, ?, ?, ?);")
 		or die $dbh->errstr;
+
 	foreach my $course ( @courses)
 	{
-		$csth->bind_value( 1, $version);
-		$csth->bind_value( 2, $class);
-		$csth->bind_value( 3, $course);
-		$csth->bind_value( 4, 1);
-		$csth->bind_value( 5, 'class');
+		$csth->bind_param( 1, $version);
+		$csth->bind_param( 2, $class);
+		$csth->bind_param( 3, $course);
+		$csth->bind_param( 4, 1);
+		$csth->bind_param( 5, 'class');
 		$csth->execute() or die $dbh->errstr;
 	}
 
@@ -109,7 +141,7 @@ sub text_to_sql
 	{
 		chomp $line;
 		my @info = split /`/, $line;
-		if ( shift @info eq 'class')
+		if ( shift @info eq 'Class')
 		{
 			&parse_and_push( \@info, \@class_parts, \@classes);
 			$classes[-1]{type} = 'class';
@@ -132,7 +164,6 @@ sub text_to_sql
 		my %event = %$event;
 		$event{version} = $version;
 		$event{class} = $class;
-		$event{interval} = 1;
 		$event{s_time} = &array_to_time( $event{s_time});
 		$event{t_time} = &array_to_time( $event{t_time});
 
@@ -156,7 +187,7 @@ sub array_to_time
 sub time_to_array
 {
 	my $time = shift;
-	return [ $time / 100, $time % 100];
+	return [ int( $time / 100), $time % 100 < 10 ? '0'. ( $time % 100) : $time % 100];
 }
 
 sub parse_and_push
