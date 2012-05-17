@@ -35,7 +35,7 @@ elsif ( $type eq 's')
 }
 elsif ( $type eq 'f')
 {
-	&fetch_version_date( $version);
+	&fetch_version_date();
 }
 elsif ( $type eq 'u')
 {
@@ -52,16 +52,44 @@ elsif ( $type eq 'g')
 	my $class = shift;
 	&get_class_value( $version, $class);
 }
+elsif ( $type eq 'c')
+{
+	my $class = shift;
+	&courses( $version, $class);
+}
+
+sub courses
+{
+	my $version = shift;
+	my $class = shift;
+
+	my $csth = $dbh->prepare( "SELECT `name` FROM course WHERE `version` = '$version' and `class` = '$class'")
+		or die $dbh->errstr;
+	$csth->execute() or die;
+	my @courses;
+	while ( my @row = $csth->fetchrow_array)
+	{
+		push @courses, $row[0];
+	}
+
+	print @courses."\n";
+	@courses = sort @courses;
+	foreach ( @courses)
+	{
+		print $_, "\n";
+	}
+}
 
 sub get_class_value
 {
 	my $version = shift;
 	my $class = shift;
 
-	my $sth = $dbh->prepare( "SELECT value FROM class WHERE 'version' = $version and 'class' = $class");
-	$sth->execute();
-	$value = ( $sth->fetchrow_array())[0];
-	print $value, "\n";
+	my $sth = $dbh->prepare( "SELECT `value` FROM class WHERE `version` = '$version' and `class` = '$class'")
+		or die $dbh->errstr;
+	$sth->execute() or die;
+	my @value = $sth->fetchrow_array();
+	print @value ? $value[0] : "NULL" , "\n";
 }
 
 sub put_class_value
@@ -70,24 +98,27 @@ sub put_class_value
 	my $class = shift;
 	my $value = shift;
 
-	my $sth = $dbh->prepare( "INSERT INTO class ( version, class, value) VALUE ( $version, $class, $value)");
-	$sth->execute();
+	print "$version $class $value\n";
+	my $sth = $dbh->prepare( "INSERT INTO class ( `version`, `class`, `value`) VALUE ( '$version', '$class', '$value')")
+		or die $dbh->errstr;
+	$sth->execute() or die;
 }
 
 sub fetch_version_date
 {
-	my $version = shift;
-	my $sth = $dbh->prepare( "SELECT value FROM config WHERE key = 'version'");
-	$sth->execute();
-	$version = ( $sth->fetchrow_array())[0];
+	my $sth = $dbh->prepare( "SELECT `value` FROM config WHERE `key` = 'version'")
+		or die $dbh->errstr;
+	$sth->execute() or die $dbh->errstr;
+	my $version = ( $sth->fetchrow_array())[0];
 	print $version, "\n";
 }
 
 sub update_version_date
 {
 	my $version = shift;
-	my $sth = $dbh->prepare( "UPDATE config SET value = $version WHERE key = 'version'");
-	$sth->execute();
+	my $sth = $dbh->prepare( "UPDATE config SET `value` = '$version' WHERE `key` = 'version'")
+		or die $dbh->errstr;
+	$sth->execute() or die $dbh->errstr;
 }
 
 sub sql_to_text
@@ -97,18 +128,19 @@ sub sql_to_text
 	
 	my $courses;
 	my @courses;
-	my $csth = $dbh->prepare( "SELECT * FROM course WHERE version = $version and class = $class")
+	my $csth = $dbh->prepare( "SELECT * FROM course WHERE `version` = '$version' and `class` = '$class'")
 		or die $dbh->errstr;
-	$csth->execute();
+	$csth->execute() or die $dbh->errstr;
 	while ( my @row = $csth->fetchrow_array)
 	{
 		push @courses, $row[3];
 		$courses .= '`' . $row[3];
 	}
+	$courses or ( print "Get no result\n" and exit);
 
-	my $sth = $dbh->prepare( "SELECT * FROM event WHERE version = $version and class = $class")
+	my $sth = $dbh->prepare( "SELECT * FROM event WHERE `version` = '$version' and `class` = '$class'")
 		or die $dbh->errstr;
-	$sth->execute();
+	$sth->execute() or die;
 
 	my @classes;
 	my @exams;
@@ -174,6 +206,7 @@ sub text_to_sql
 	my $lines = shift;
 
 	my $courses = shift @$lines;
+	$courses or print "No header line\n" and exit;
 	chomp( $courses);
 	my @courses = split /`/, $courses;
 	my $class = shift @courses;
