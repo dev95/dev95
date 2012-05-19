@@ -201,7 +201,7 @@ foreach ( @exams)
 	my $exam_start_time = $first_day->clone;
 
 	$exam_start_time->add(
-		day 	=> $exam_info{week} * 7 - 7 + $exam_info{date} - 1,
+		day 	=> $exam_info{week} * 7 - 7 + $exam_info{date},
 		hour 	=> $exam_info{s_time}[0],
 		min 	=> $exam_info{s_time}[1],
 		sec 	=> 0,
@@ -209,7 +209,7 @@ foreach ( @exams)
 
 	my $exam_end_time = $first_day->clone;
 	$exam_end_time->add(
-		day 	=> $exam_info{week} * 7 - 7 + $exam_info{date} - 1,
+		day 	=> $exam_info{week} * 7 - 7 + $exam_info{date},
 		hour 	=> $exam_info{t_time}[0],
 		min 	=> $exam_info{t_time}[1],
 		sec 	=> 0,

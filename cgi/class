@@ -165,6 +165,7 @@ sub find_exams
 			$exam_info[1] =~ s/周日/周七/;
 			$exam_info[1] =~ s/周(\d*)/$1/ or warn "No accure word on date";
 			$exam_info[1] = &find( [ @num_name], $exam_info[1]) or warn "No accure date";
+			--$exam_info[1]; # Range 0-6
 
 			my $time = $exam_info[2];
 
