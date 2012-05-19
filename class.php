@@ -92,6 +92,7 @@ if ( $class)
 	}
 	else
 	{
+		$status = $status ? $status : "Internal error";
 		echo "<p>Something was wrong!\n</p>";
 		echo "<p>Error: $status</p>";
 	}

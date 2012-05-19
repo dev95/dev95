@@ -136,7 +136,7 @@ sub sql_to_text
 		push @courses, $row[3];
 		$courses .= '`' . $row[3];
 	}
-	$courses or ( print "Get no result\n" and exit);
+	$courses or ( print "No Input\n" and exit);
 
 	my $sth = $dbh->prepare( "SELECT * FROM event WHERE `version` = '$version' and `class` = '$class'")
 		or die $dbh->errstr;
@@ -206,7 +206,7 @@ sub text_to_sql
 	my $lines = shift;
 
 	my $courses = shift @$lines;
-	$courses or print "No header line\n" and exit;
+	$courses or print "No Input\n" and exit;
 	chomp( $courses);
 	my @courses = split /`/, $courses;
 	my $class = shift @courses;
