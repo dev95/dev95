@@ -117,9 +117,9 @@ function gen_ics( $class_num, $version, $param)
 	{
 		$ret = 0;
 		exec( "perl sql s $version $class_num | perl ical $param", $res, $ret);
-		if ( $ret != 0 || $res[0] = "No Input")
+		if ( $ret != 0 || $res[0] == "No Input")
 		{
-			error_log( "perl sql s $version $class_num | perl ical $param", $res, $ret);
+			error_log( "perl sql s $version $class_num | perl ical $param ". "Got: $res[0], $ret");
 			$res = false;
 		}
 	}
